@@ -1,0 +1,100 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Monitoring Telur</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Arial, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+    }
+    .login-box {
+      width: min(90%, 380px);
+      padding: 28px;
+      border-radius: 16px;
+      background: white;
+      box-shadow: 0 8px 28px #00000012;
+    }
+    h1 { margin-top: 0; font-size: 25px; }
+    p { color: #64748b; }
+    label { display: block; margin-top: 16px; }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 7px;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+    input { border: 1px solid #cbd5e1; }
+    button {
+      margin-top: 22px;
+      border: 0;
+      background: #15803d;
+      color: white;
+      cursor: pointer;
+    }
+    #pesan { font-size: 14px; overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <main class="login-box">
+    <h1>Monitoring Telur</h1>
+    <p>Masuk untuk melihat hasil penyortiran telur.</p>
+
+    <form id="formLogin">
+      <label for="email">Email</label>
+      <input id="email" type="email" required autocomplete="username">
+
+      <label for="password">Password</label>
+      <input id="password" type="password" required
+             autocomplete="current-password">
+
+      <button type="submit" id="tombolLogin">Login</button>
+      <p id="pesan" role="status"></p>
+    </form>
+  </main>
+
+  <script type="module">
+    import { createClient } from
+      "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+    const SUPABASE_URL = "https://lrpmspcgaydaqjhabpfo.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_DTlvY19a9WV30lu4_IfWag_gqNLqOri";
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const form = document.getElementById("formLogin");
+    const pesan = document.getElementById("pesan");
+    const tombol = document.getElementById("tombolLogin");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      tombol.disabled = true;
+      pesan.textContent = "Sedang memeriksa akun...";
+
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: document.getElementById("email").value.trim(),
+          password: document.getElementById("password").value
+        });
+
+        if (error) throw error;
+
+        pesan.textContent = "Login berhasil! Halo, " +
+          (data.user.email || "pengguna") + ".";
+      } catch (error) {
+        pesan.textContent = "Login gagal: " + error.message;
+      } finally {
+        tombol.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

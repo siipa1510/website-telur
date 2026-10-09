@@ -1,0 +1,283 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Monitoring Telur</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+    }
+
+    header {
+      background: #15803d;
+      color: white;
+      padding: 22px;
+    }
+
+    header h1 { margin: 0 0 8px; }
+
+    main {
+      width: min(100% - 32px, 1000px);
+      margin: 24px auto;
+    }
+
+    .kartu-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .kartu, .riwayat {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 3px 12px #0000000a;
+    }
+
+    .kartu h3 {
+      margin: 0 0 14px;
+      font-size: 15px;
+      color: #64748b;
+    }
+
+    .angka {
+      font-size: 30px;
+      font-weight: bold;
+    }
+
+    .riwayat { margin-top: 22px; }
+
+    .tabel-wrapper { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 12px 8px;
+      border-bottom: 1px solid #e2e8f0;
+      white-space: nowrap;
+    }
+
+    .catatan {
+      color: #64748b;
+      font-size: 14px;
+    }
+
+    button {
+      padding: 10px 15px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    #logout {
+      background: white;
+      color: #166534;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Monitoring Telur</h1>
+    <p>Dashboard hasil penyortiran telur ayam</p>
+    <span id="status">Memeriksa login...</span>
+    <br><br>
+    <button id="logout">Logout</button>
+  </header>
+
+  <main>
+    <section class="kartu-container">
+      <div class="kartu">
+        <h3>Total Telur</h3>
+        <div class="angka" id="total">0</div>
+      </div>
+
+      <div class="kartu">
+        <h3>Kualitas Baik</h3>
+        <div class="angka" id="baik">0</div>
+      </div>
+
+      <div class="kartu">
+        <h3>Telur Ditolak</h3>
+        <div class="angka" id="ditolak">0</div>
+      </div>
+
+      <div class="kartu">
+        <h3>Telur Kecil</h3>
+        <div class="angka" id="kecil">0</div>
+      </div>
+
+      <div class="kartu">
+        <h3>Telur Sedang</h3>
+        <div class="angka" id="sedang">0</div>
+      </div>
+
+      <div class="kartu">
+        <h3>Telur Besar</h3>
+        <div class="angka" id="besar">0</div>
+      </div>
+    </section>
+
+    <section class="riwayat">
+      <h2>Riwayat Penyortiran</h2>
+      <p class="catatan" id="pesan">
+        Dashboard belum terhubung ke database.
+      </p>
+
+      <div class="tabel-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>No. Telur</th>
+              <th>Berat (gram)</th>
+              <th>Kualitas</th>
+              <th>Kategori</th>
+              <th>Waktu</th>
+            </tr>
+          </thead>
+          <tbody id="daftarTelur">
+            <tr>
+              <td colspan="5">Belum ada data untuk ditampilkan.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { createClient } from
+      "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+    const SUPABASE_URL = "https://lrpmspcgaydaqjhabpfo.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_DTlvY19a9WV30lu4_IfWag_gqNLqOri";
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const status = document.getElementById("status");
+    const pesan = document.getElementById("pesan");
+
+    async function mulaiDashboard() {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error || !data.session) {
+        window.location.href = "login.html";
+        return;
+      }
+
+      status.textContent = "Login sebagai " + data.session.user.email;
+      pesan.textContent = "Mengambil data dari Supabase...";
+
+      await muatData();
+
+      supabase
+        .channel("pantau-hasil-sortir")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "hasil_sortir"
+          },
+          () => muatData()
+        )
+        .subscribe();
+    }
+
+    async function muatData() {
+      const { data, error } = await supabase
+        .from("hasil_sortir")
+        .select("*")
+        .order("waktu_sortir", { ascending: false });
+
+      if (error) {
+        pesan.textContent = "Gagal mengambil data: " + error.message;
+        return;
+      }
+
+      const telur = data || [];
+      const jumlah = {
+        baik: 0, ditolak: 0, kecil: 0, sedang: 0, besar: 0
+      };
+
+      telur.forEach(item => {
+        const kualitas = String(item.kualitas || "").toLowerCase();
+        const kategori = String(item.kategori || "").toLowerCase();
+
+        if (
+          kualitas.includes("baik") ||
+          kualitas.includes("layak")
+        ) {
+          jumlah.baik++;
+        } else if (
+          kualitas.includes("tolak") ||
+          kualitas.includes("buruk") ||
+          kualitas.includes("retak") ||
+          kualitas.includes("tidak")
+        ) {
+          jumlah.ditolak++;
+        }
+
+        if (kategori.includes("kecil")) jumlah.kecil++;
+        if (kategori.includes("sedang")) jumlah.sedang++;
+        if (kategori.includes("besar")) jumlah.besar++;
+      });
+
+      document.getElementById("total").textContent = telur.length;
+      document.getElementById("baik").textContent = jumlah.baik;
+      document.getElementById("ditolak").textContent = jumlah.ditolak;
+      document.getElementById("kecil").textContent = jumlah.kecil;
+      document.getElementById("sedang").textContent = jumlah.sedang;
+      document.getElementById("besar").textContent = jumlah.besar;
+
+      const tbody = document.getElementById("daftarTelur");
+      tbody.replaceChildren();
+
+      if (telur.length === 0) {
+        tbody.innerHTML =
+          '<tr><td colspan="5">Belum ada data penyortiran.</td></tr>';
+      } else {
+        telur.forEach(item => {
+          const tr = document.createElement("tr");
+
+          [
+            item.nomor_telur ?? "-",
+            item.berat_gram ?? "-",
+            item.kualitas ?? "-",
+            item.kategori ?? "-",
+            item.waktu_sortir
+              ? new Date(item.waktu_sortir).toLocaleString("id-ID")
+              : "-"
+          ].forEach(nilai => {
+            const td = document.createElement("td");
+            td.textContent = nilai;
+            tr.appendChild(td);
+          });
+
+          tbody.appendChild(tr);
+        });
+      }
+
+      pesan.textContent =
+        "Data berhasil diperbarui. Total " + telur.length + " catatan.";
+    }
+
+    document.getElementById("logout").addEventListener("click", async () => {
+      await supabase.auth.signOut();
+      window.location.href = "login.html";
+    });
+
+    mulaiDashboard();
+  </script>
+</body>
+</html>
